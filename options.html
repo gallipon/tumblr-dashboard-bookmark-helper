@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tumblr Bookmark Highlighter - Settings</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 480px;
+      margin: 32px auto;
+      padding: 0 16px;
+      color: #222;
+      background: #fff;
+    }
+    h1 {
+      font-size: 18px;
+      margin-bottom: 24px;
+      color: #333;
+    }
+    .field {
+      margin-bottom: 24px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .hint {
+      font-size: 12px;
+      color: #888;
+      margin: 4px 0 0 0;
+    }
+
+    /* カラーピッカー */
+    .color-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    input[type="color"] {
+      width: 48px;
+      height: 36px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 2px;
+    }
+    .color-hex {
+      font-size: 13px;
+      color: #666;
+      font-family: monospace;
+    }
+
+    /* スライダー */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    input[type="range"] {
+      flex: 1;
+      accent-color: #ffc107;
+    }
+    .slider-value {
+      font-size: 14px;
+      font-family: monospace;
+      min-width: 40px;
+      text-align: right;
+      color: #444;
+    }
+
+    /* テキスト入力 */
+    input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 7px 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #ffc107;
+      box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.25);
+    }
+
+    /* トグル */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: #ccc;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .toggle-slider {
+      background: #ffc107;
+    }
+    .toggle input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+    }
+    .toggle-label {
+      font-size: 14px;
+      color: #444;
+    }
+
+    /* プレビュー */
+    .preview-label {
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #555;
+    }
+    .preview-area {
+      background: #f0f0f0;
+      border-radius: 6px;
+      padding: 24px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #preview-marker {
+      padding: 6px 10px;
+      font-size: 13px;
+      border-radius: 0 4px 4px 0;
+      white-space: nowrap;
+      font-family: sans-serif;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+
+    /* ボタン */
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    button {
+      padding: 8px 18px;
+      font-size: 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: none;
+    }
+    #save-btn {
+      background: #ffc107;
+      color: #333;
+      font-weight: bold;
+    }
+    #save-btn:hover {
+      background: #e6a800;
+    }
+    #reset-btn {
+      background: transparent;
+      color: #888;
+      border: 1px solid #ccc;
+    }
+    #reset-btn:hover {
+      background: #f5f5f5;
+    }
+    #status {
+      font-size: 13px;
+      color: #4caf50;
+      margin-top: 10px;
+      min-height: 20px;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #eee;
+      margin: 8px 0 24px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tumblr Bookmark Highlighter — Settings</h1>
+
+  <div class="field">
+    <label for="color-picker">Marker background color</label>
+    <div class="color-row">
+      <input type="color" id="color-picker" value="#ffc107">
+      <span class="color-hex" id="color-hex">#ffc107</span>
+    </div>
+    <p class="hint">Text color and glow are derived automatically.</p>
+  </div>
+
+  <div class="field">
+    <label for="marker-text">Marker text</label>
+    <input type="text" id="marker-text" value="🔖 Last read here" maxlength="50">
+  </div>
+
+  <div class="field">
+    <label for="max-scan">Max posts to scan</label>
+    <div class="slider-row">
+      <input type="range" id="max-scan" min="100" max="2000" step="100" value="1000">
+      <span class="slider-value" id="max-scan-value">1000</span>
+    </div>
+    <p class="hint">How many posts to search before giving up when using Find Bookmark.</p>
+  </div>
+
+  <div class="field">
+    <label>Find Bookmark button</label>
+    <div class="toggle-row">
+      <label class="toggle">
+        <input type="checkbox" id="show-find-button" checked>
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label" id="toggle-label">Visible</span>
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="field">
+    <div class="preview-label">Preview</div>
+    <div class="preview-area">
+      <div id="preview-marker">🔖 Last read here</div>
+    </div>
+  </div>
+
+  <div class="buttons">
+    <button id="save-btn">Save</button>
+    <button id="reset-btn">Reset to default</button>
+  </div>
+  <div id="status"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>

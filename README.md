@@ -1,11 +1,13 @@
-# Tumblr Dashboard Bookmark Highlighter
+# Tumblr Dashboard Bookmark Helper
 
-Tumblr's "last read here" bookmark on the dashboard with a glowing gold marker, making it easy to spot where you left off.
+Highlights Tumblr's "last read here" bookmark on the dashboard with a glowing gold marker, and lets you jump to it instantly.
 
 ## Features
 
 - Detects Tumblr's built-in "last read here" bookmark on the dashboard
 - Displays a glowing gold marker with a bookmark emoji
+- **Find Bookmark button**: scrolls the feed to find and jump to your bookmark
+- Customizable marker color, text, and behavior via the options page
 - Filters out fake bookmarks (community recommendations, etc.)
 - Lightweight: uses `requestAnimationFrame` for smooth performance
 
@@ -13,8 +15,7 @@ Tumblr's "last read here" bookmark on the dashboard with a glowing gold marker, 
 
 ### Firefox
 
-1. Download the latest `.xpi` file from [Releases](../../releases)
-2. Drag and drop the `.xpi` file into Firefox
+Install from [Firefox Add-ons (AMO)](https://addons.mozilla.org/ja/firefox/addon/tumblr-bookmark-helper/).
 
 ### Chrome
 
