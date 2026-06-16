@@ -313,7 +313,7 @@ function relativeTime(ts) {
 }
 
 function buildHistoryMenu() {
-  historyMenu.innerHTML = '';
+  historyMenu.replaceChildren();
 
   // index 0 はライブのしおり相当なので 1 以降をジャンプ候補にする
   const entries = bookmarkHistory.slice(1);
@@ -330,7 +330,14 @@ function buildHistoryMenu() {
     const i = idx + 1;
     const item = document.createElement('div');
     item.className = 'item';
-    item.innerHTML = `${historyLabel(i)}<span class="time">${relativeTime(entry.ts)}</span>`;
+
+    item.appendChild(document.createTextNode(historyLabel(i)));
+
+    const time = document.createElement('span');
+    time.className = 'time';
+    time.textContent = relativeTime(entry.ts);
+    item.appendChild(time);
+
     item.addEventListener('click', () => {
       historyMenu.style.display = 'none';
       searchForPostId(entry.postId, historyLabel(i));
