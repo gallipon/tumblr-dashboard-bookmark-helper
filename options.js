@@ -3,6 +3,8 @@ const DEFAULTS = {
   markerText: '🔖 Last read here',
   maxScan: 1000,
   showFindButton: true,
+  historyEnabled: true,
+  maxHistory: 3,
 };
 
 function getLuminance(hex) {
@@ -42,6 +44,10 @@ const maxScanInput = document.getElementById('max-scan');
 const maxScanValue = document.getElementById('max-scan-value');
 const showFindButtonInput = document.getElementById('show-find-button');
 const toggleLabel = document.getElementById('toggle-label');
+const historyEnabledInput = document.getElementById('history-enabled');
+const historyLabel = document.getElementById('history-label');
+const maxHistoryInput = document.getElementById('max-history');
+const maxHistoryValue = document.getElementById('max-history-value');
 const saveBtn = document.getElementById('save-btn');
 const resetBtn = document.getElementById('reset-btn');
 const status = document.getElementById('status');
@@ -55,6 +61,10 @@ browser.storage.local.get(DEFAULTS).then(result => {
   maxScanValue.textContent = result.maxScan;
   showFindButtonInput.checked = result.showFindButton;
   toggleLabel.textContent = result.showFindButton ? 'Visible' : 'Hidden';
+  historyEnabledInput.checked = result.historyEnabled;
+  historyLabel.textContent = result.historyEnabled ? 'Enabled' : 'Disabled';
+  maxHistoryInput.value = result.maxHistory;
+  maxHistoryValue.textContent = result.maxHistory;
   applyPreview(result.markerColor, result.markerText);
 });
 
@@ -79,6 +89,16 @@ showFindButtonInput.addEventListener('change', () => {
   toggleLabel.textContent = showFindButtonInput.checked ? 'Visible' : 'Hidden';
 });
 
+// 履歴トグル
+historyEnabledInput.addEventListener('change', () => {
+  historyLabel.textContent = historyEnabledInput.checked ? 'Enabled' : 'Disabled';
+});
+
+// 履歴件数スライダー
+maxHistoryInput.addEventListener('input', () => {
+  maxHistoryValue.textContent = maxHistoryInput.value;
+});
+
 // 保存
 saveBtn.addEventListener('click', () => {
   browser.storage.local.set({
@@ -86,6 +106,8 @@ saveBtn.addEventListener('click', () => {
     markerText: markerTextInput.value || DEFAULTS.markerText,
     maxScan: parseInt(maxScanInput.value, 10),
     showFindButton: showFindButtonInput.checked,
+    historyEnabled: historyEnabledInput.checked,
+    maxHistory: parseInt(maxHistoryInput.value, 10),
   }).then(() => {
     status.textContent = 'Saved!';
     setTimeout(() => { status.textContent = ''; }, 2000);
@@ -101,6 +123,10 @@ resetBtn.addEventListener('click', () => {
   maxScanValue.textContent = DEFAULTS.maxScan;
   showFindButtonInput.checked = DEFAULTS.showFindButton;
   toggleLabel.textContent = 'Visible';
+  historyEnabledInput.checked = DEFAULTS.historyEnabled;
+  historyLabel.textContent = 'Enabled';
+  maxHistoryInput.value = DEFAULTS.maxHistory;
+  maxHistoryValue.textContent = DEFAULTS.maxHistory;
   applyPreview(DEFAULTS.markerColor, DEFAULTS.markerText);
 
   browser.storage.local.set(DEFAULTS).then(() => {
