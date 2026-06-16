@@ -1,6 +1,9 @@
 CLAUDE.md
+CLAUDE.local.md
 DEVELOPMENT_HISTORY.md
 STORE_LISTING.md
+.local_docs/
+archive/
 *.zip
 *.png
 *.xpi
