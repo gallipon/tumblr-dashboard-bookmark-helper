@@ -30,4 +30,4 @@ Tumblr inserts elements with `data-cell-id` containing `timelineObject:title` to
 
 ## License
 
-MIT
+[Mozilla Public License 2.0](https://www.mozilla.org/MPL/2.0/)
