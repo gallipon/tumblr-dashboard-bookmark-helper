@@ -3,16 +3,23 @@ let bookmarkElement = null;
 let updateScheduled = false;
 
 let findButton;
+let historyButton;
+let historyMenu;
 let overlay;
 let overlayStatus;
 let searchCancelled = false;
 let isSearching = false;
+
+let bookmarkHistory = [];
+let snapshotTaken = false;
 
 const DEFAULTS = {
   markerColor: '#ffc107',
   markerText: '🔖 Last read here',
   maxScan: 1000,
   showFindButton: true,
+  historyEnabled: true,
+  maxHistory: 3,
 };
 let settings = { ...DEFAULTS };
 
@@ -50,6 +57,10 @@ function applySettings(changed) {
       findButton.style.background = bgColor;
       findButton.style.color = textColor;
     }
+    if (historyButton) {
+      historyButton.style.background = bgColor;
+      historyButton.style.color = textColor;
+    }
     const glowStyle = document.getElementById('tumblr-bookmark-glow-style');
     if (glowStyle) glowStyle.textContent = buildGlowKeyframes(glow1, glow2);
   }
@@ -66,6 +77,16 @@ function applySettings(changed) {
   if (changed.showFindButton !== undefined) {
     settings.showFindButton = changed.showFindButton;
     if (findButton) findButton.style.display = changed.showFindButton ? '' : 'none';
+  }
+
+  if (changed.historyEnabled !== undefined) {
+    settings.historyEnabled = changed.historyEnabled;
+    if (historyButton) historyButton.style.display = changed.historyEnabled ? '' : 'none';
+    if (!changed.historyEnabled && historyMenu) historyMenu.style.display = 'none';
+  }
+
+  if (changed.maxHistory !== undefined) {
+    settings.maxHistory = changed.maxHistory;
   }
 }
 
@@ -145,6 +166,83 @@ function ensureUI() {
   findButton.addEventListener('click', searchForBookmark);
   document.body.appendChild(findButton);
 
+  // 前回のしおりボタン
+  historyButton = document.createElement('button');
+  historyButton.id = 'tumblr-history-btn';
+  historyButton.textContent = '⏮ Previous Bookmark';
+  historyButton.style.cssText = `
+    position: fixed;
+    bottom: 62px;
+    right: 20px;
+    background: ${settings.markerColor};
+    color: ${getTextColor(settings.markerColor)};
+    border: none;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    z-index: 10000;
+    font-family: sans-serif;
+    display: ${settings.historyEnabled ? '' : 'none'};
+  `;
+  historyButton.addEventListener('click', toggleHistoryMenu);
+  document.body.appendChild(historyButton);
+
+  // 履歴メニュー
+  historyMenu = document.createElement('div');
+  historyMenu.id = 'tumblr-history-menu';
+  historyMenu.style.cssText = `
+    position: fixed;
+    bottom: 104px;
+    right: 20px;
+    background: #fff;
+    color: #222;
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    padding: 6px;
+    z-index: 10000;
+    font-family: sans-serif;
+    font-size: 13px;
+    min-width: 180px;
+    display: none;
+  `;
+  document.body.appendChild(historyMenu);
+
+  const menuStyle = document.createElement('style');
+  menuStyle.id = 'tumblr-history-menu-style';
+  menuStyle.textContent = `
+    #tumblr-history-menu .item {
+      padding: 8px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #tumblr-history-menu .item:hover {
+      background: #f0f0f0;
+    }
+    #tumblr-history-menu .item.empty {
+      color: #999;
+      cursor: default;
+    }
+    #tumblr-history-menu .item.empty:hover {
+      background: transparent;
+    }
+    #tumblr-history-menu .item .time {
+      color: #999;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+  `;
+  document.head.appendChild(menuStyle);
+
+  // メニュー外クリックで閉じる
+  document.addEventListener('click', (e) => {
+    if (historyMenu.style.display === 'none') return;
+    if (e.target === historyButton || historyMenu.contains(e.target)) return;
+    historyMenu.style.display = 'none';
+  });
+
   // オーバーレイ
   overlay = document.createElement('div');
   overlay.id = 'tumblr-bookmark-overlay';
@@ -192,12 +290,72 @@ function ensureUI() {
   document.body.appendChild(overlay);
 }
 
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function historyLabel(i) {
+  if (i === 1) return 'Previous';
+  return `${ordinal(i)} previous`;
+}
+
+function relativeTime(ts) {
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+function buildHistoryMenu() {
+  historyMenu.innerHTML = '';
+
+  // index 0 はライブのしおり相当なので 1 以降をジャンプ候補にする
+  const entries = bookmarkHistory.slice(1);
+
+  if (entries.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'item empty';
+    empty.textContent = 'No history yet';
+    historyMenu.appendChild(empty);
+    return;
+  }
+
+  entries.forEach((entry, idx) => {
+    const i = idx + 1;
+    const item = document.createElement('div');
+    item.className = 'item';
+    item.innerHTML = `${historyLabel(i)}<span class="time">${relativeTime(entry.ts)}</span>`;
+    item.addEventListener('click', () => {
+      historyMenu.style.display = 'none';
+      searchForPostId(entry.postId, historyLabel(i));
+    });
+    historyMenu.appendChild(item);
+  });
+}
+
+function toggleHistoryMenu() {
+  if (historyMenu.style.display === 'none') {
+    buildHistoryMenu();
+    historyMenu.style.display = 'block';
+  } else {
+    historyMenu.style.display = 'none';
+  }
+}
+
 function showOverlay(text) {
   overlayStatus.textContent = text;
   overlay.style.display = 'flex';
   overlay.style.animation = 'overlayFadeIn 0.2s ease';
   overlay.style.opacity = '1';
   findButton.style.display = 'none';
+  historyButton.style.display = 'none';
+  historyMenu.style.display = 'none';
 }
 
 function hideOverlay() {
@@ -206,7 +364,8 @@ function hideOverlay() {
     setTimeout(() => {
       overlay.style.display = 'none';
       overlay.style.animation = '';
-      findButton.style.display = '';
+      findButton.style.display = settings.showFindButton ? '' : 'none';
+      historyButton.style.display = settings.historyEnabled ? '' : 'none';
       resolve();
     }, 300);
   });
@@ -229,18 +388,20 @@ function waitForNewContent() {
   });
 }
 
-async function searchForBookmark() {
+// finder() は対象要素を返す（なければ null）。下方向スクロールしながら探してジャンプする汎用ロジック。
+async function searchAndJump(finder, searchingLabel) {
   if (isSearching) return;
   isSearching = true;
   searchCancelled = false;
 
   const originalScrollY = window.scrollY;
 
-  showOverlay('🔖 Searching for bookmark...');
+  showOverlay(`🔖 Searching for ${searchingLabel}...`);
 
   // すでにDOMにある場合
-  if (findBookmarkElement()) {
-    await jumpToBookmark();
+  let target = finder();
+  if (target) {
+    await jumpToElement(target);
     isSearching = false;
     return;
   }
@@ -254,18 +415,19 @@ async function searchForBookmark() {
     window.scrollTo(0, document.body.scrollHeight);
     await waitForNewContent();
 
-    if (findBookmarkElement()) {
-      await jumpToBookmark();
+    target = finder();
+    if (target) {
+      await jumpToElement(target);
       isSearching = false;
       return;
     }
 
     scanned = document.querySelectorAll('[data-cell-id]').length;
-    overlayStatus.textContent = `🔖 Searching for bookmark... (${scanned} posts scanned)`;
+    overlayStatus.textContent = `🔖 Searching for ${searchingLabel}... (${scanned} posts scanned)`;
   }
 
   // 見つからなかった or キャンセル
-  const msg = searchCancelled ? 'Cancelled.' : `Bookmark not found (scanned ${scanned} posts).`;
+  const msg = searchCancelled ? 'Cancelled.' : `Not found (scanned ${scanned} posts).`;
   overlayStatus.textContent = msg;
   await new Promise(r => setTimeout(r, 1500));
   await hideOverlay();
@@ -273,11 +435,22 @@ async function searchForBookmark() {
   isSearching = false;
 }
 
-async function jumpToBookmark() {
+function searchForBookmark() {
+  return searchAndJump(
+    () => (findBookmarkElement() ? bookmarkElement : null),
+    'bookmark'
+  );
+}
+
+function searchForPostId(postId, label) {
+  return searchAndJump(() => findPostById(postId), label);
+}
+
+async function jumpToElement(el) {
   overlayStatus.textContent = '🔖 Found! Jumping...';
   await new Promise(r => setTimeout(r, 500));
   await hideOverlay();
-  bookmarkElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function findBookmarkElement() {
@@ -300,6 +473,51 @@ function findBookmarkElement() {
   return false;
 }
 
+// data-cell-id から永続ポストIDを取り出す (例: ...-post-819535168916340736-... → "819535168916340736")
+function getPostId(cellId) {
+  const m = cellId && cellId.match(/-post-(\d+)-/);
+  return m ? m[1] : null;
+}
+
+// 指定 postId を含むセルを返す（なければ null）
+function findPostById(postId) {
+  const needle = `-post-${postId}-`;
+  for (const el of document.querySelectorAll('[data-cell-id]')) {
+    const id = el.getAttribute('data-cell-id');
+    if (id && id.includes(needle)) return el;
+  }
+  return null;
+}
+
+// しおり直下（document順で後ろ）にある最初の通常ポストの postId を取得
+function getAdjacentPostId() {
+  if (!bookmarkElement) return null;
+  const cells = [...document.querySelectorAll('[data-cell-id]')];
+  const i = cells.indexOf(bookmarkElement);
+  if (i === -1) return null;
+  for (let j = i + 1; j < cells.length; j++) {
+    const id = getPostId(cells[j].getAttribute('data-cell-id'));
+    if (id) return id;
+  }
+  return null;
+}
+
+// ページ読込につき1回、現在のしおり位置を履歴に記録する
+function takeSnapshot() {
+  if (snapshotTaken || !settings.historyEnabled) return;
+  const postId = getAdjacentPostId();
+  if (!postId) return;
+
+  snapshotTaken = true;
+
+  // 直近と同じ位置なら記録しない（読まずに再オープンを除外）
+  if (bookmarkHistory[0] && bookmarkHistory[0].postId === postId) return;
+
+  bookmarkHistory.unshift({ postId, ts: Date.now() });
+  bookmarkHistory = bookmarkHistory.slice(0, settings.maxHistory);
+  browser.storage.local.set({ bookmarkHistory });
+}
+
 function updateMarker() {
   if (!marker) return;
 
@@ -319,6 +537,9 @@ function updateMarker() {
       return;
     }
   }
+
+  // しおりが確定したので（読込につき1回）履歴を記録
+  takeSnapshot();
 
   const rect = bookmarkElement.getBoundingClientRect();
   const absoluteTop = window.scrollY + rect.top;
@@ -358,9 +579,11 @@ function scheduleUpdate() {
 }
 
 function init() {
-  // 設定を読み込んでから UI を初期化
-  browser.storage.local.get(DEFAULTS).then(result => {
-    settings = result;
+  // 設定と履歴を読み込んでから UI を初期化
+  browser.storage.local.get({ ...DEFAULTS, bookmarkHistory: [] }).then(result => {
+    const { bookmarkHistory: hist, ...loaded } = result;
+    settings = loaded;
+    bookmarkHistory = hist || [];
     ensureMarker();
     ensureUI();
 
@@ -379,10 +602,15 @@ function init() {
   // 設定変更をリアルタイムで反映
   browser.storage.onChanged.addListener((changes) => {
     const updated = {};
-    for (const key of ['markerColor', 'markerText', 'maxScan', 'showFindButton']) {
+    for (const key of ['markerColor', 'markerText', 'maxScan', 'showFindButton', 'historyEnabled', 'maxHistory']) {
       if (changes[key]) updated[key] = changes[key].newValue;
     }
     if (Object.keys(updated).length > 0) applySettings(updated);
+
+    // 別タブで履歴が更新されたら取り込む
+    if (changes.bookmarkHistory) {
+      bookmarkHistory = changes.bookmarkHistory.newValue || [];
+    }
   });
 }
 

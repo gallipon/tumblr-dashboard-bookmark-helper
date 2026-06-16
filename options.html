@@ -237,6 +237,27 @@
     </div>
   </div>
 
+  <div class="field">
+    <label>Bookmark history</label>
+    <div class="toggle-row">
+      <label class="toggle">
+        <input type="checkbox" id="history-enabled" checked>
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label" id="history-label">Enabled</span>
+    </div>
+    <p class="hint">Remembers past bookmark positions so you can jump back to where you resumed last time.</p>
+  </div>
+
+  <div class="field">
+    <label for="max-history">History entries to keep</label>
+    <div class="slider-row">
+      <input type="range" id="max-history" min="2" max="10" step="1" value="3">
+      <span class="slider-value" id="max-history-value">3</span>
+    </div>
+    <p class="hint">Entry 1 is the live bookmark; the rest are 前回, 前々回, …</p>
+  </div>
+
   <hr>
 
   <div class="field">
