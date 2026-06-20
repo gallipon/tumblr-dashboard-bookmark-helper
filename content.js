@@ -5,6 +5,10 @@ let updateScheduled = false;
 let findButton;
 let historyButton;
 let historyMenu;
+let remainingBadge;
+let celebrationToast;
+let celebrationTimer;
+let caughtUpArmed = false;
 let overlay;
 let overlayStatus;
 let searchCancelled = false;
@@ -20,6 +24,10 @@ const DEFAULTS = {
   showFindButton: true,
   historyEnabled: true,
   maxHistory: 3,
+  showRemainingCount: true,
+  showUnreadCount: true,
+  celebrateCaughtUp: true,
+  keyboardShortcuts: true,
 };
 let settings = { ...DEFAULTS };
 
@@ -61,6 +69,10 @@ function applySettings(changed) {
       historyButton.style.background = bgColor;
       historyButton.style.color = textColor;
     }
+    if (celebrationToast) {
+      celebrationToast.style.background = bgColor;
+      celebrationToast.style.color = textColor;
+    }
     const glowStyle = document.getElementById('tumblr-bookmark-glow-style');
     if (glowStyle) glowStyle.textContent = buildGlowKeyframes(glow1, glow2);
   }
@@ -88,6 +100,24 @@ function applySettings(changed) {
   if (changed.maxHistory !== undefined) {
     settings.maxHistory = changed.maxHistory;
   }
+
+  if (changed.showRemainingCount !== undefined) {
+    settings.showRemainingCount = changed.showRemainingCount;
+    updateCounters();
+  }
+
+  if (changed.showUnreadCount !== undefined) {
+    settings.showUnreadCount = changed.showUnreadCount;
+    updateCounters();
+  }
+
+  if (changed.celebrateCaughtUp !== undefined) {
+    settings.celebrateCaughtUp = changed.celebrateCaughtUp;
+  }
+
+  if (changed.keyboardShortcuts !== undefined) {
+    settings.keyboardShortcuts = changed.keyboardShortcuts;
+  }
 }
 
 function buildGlowKeyframes(glow1, glow2) {
@@ -103,6 +133,11 @@ function buildGlowKeyframes(glow1, glow2) {
     @keyframes overlayFadeOut {
       from { opacity: 1; }
       to { opacity: 0; }
+    }
+    @keyframes caughtUpPop {
+      0% { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.9); }
+      60% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.04); }
+      100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
     }
   `;
 }
@@ -189,12 +224,56 @@ function ensureUI() {
   historyButton.addEventListener('click', toggleHistoryMenu);
   document.body.appendChild(historyButton);
 
+  // 先頭までの残りポスト数バッジ（非操作・情報表示のみ）
+  remainingBadge = document.createElement('div');
+  remainingBadge.id = 'tumblr-remaining-badge';
+  remainingBadge.style.cssText = `
+    position: fixed;
+    bottom: 104px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    padding: 5px 11px;
+    font-size: 12px;
+    font-weight: bold;
+    border-radius: 12px;
+    pointer-events: none;
+    z-index: 10000;
+    font-family: sans-serif;
+    white-space: nowrap;
+    display: none;
+  `;
+  document.body.appendChild(remainingBadge);
+
+  // 「全部読んだ」演出トースト（上部中央・一時表示）
+  celebrationToast = document.createElement('div');
+  celebrationToast.id = 'tumblr-caughtup-toast';
+  celebrationToast.style.cssText = `
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: ${settings.markerColor};
+    color: ${getTextColor(settings.markerColor)};
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: bold;
+    border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    font-family: sans-serif;
+    pointer-events: none;
+    white-space: nowrap;
+    display: none;
+  `;
+  document.body.appendChild(celebrationToast);
+
   // 履歴メニュー
   historyMenu = document.createElement('div');
   historyMenu.id = 'tumblr-history-menu';
   historyMenu.style.cssText = `
     position: fixed;
-    bottom: 104px;
+    bottom: 144px;
     right: 20px;
     background: #fff;
     color: #222;
@@ -363,6 +442,7 @@ function showOverlay(text) {
   findButton.style.display = 'none';
   historyButton.style.display = 'none';
   historyMenu.style.display = 'none';
+  remainingBadge.style.display = 'none';
 }
 
 function hideOverlay() {
@@ -373,6 +453,7 @@ function hideOverlay() {
       overlay.style.animation = '';
       findButton.style.display = settings.showFindButton ? '' : 'none';
       historyButton.style.display = settings.historyEnabled ? '' : 'none';
+      updateCounters();
       resolve();
     }, 300);
   });
@@ -576,12 +657,106 @@ function updateMarker() {
   marker.style.display = 'block';
 }
 
+// 読書情報バッジ更新:
+//  - 残り(remaining): ビューポートより上の通常ポスト数（＝先頭まで読み進める残り）
+//  - 未読(unread): bookmarkより上の通常ポスト数（＝前回以降の新着、bookmarkがDOMにある時のみ）
+// 仮想化なし（画面外の上方ポストもDOMに保持される）を実機確認済みのため単純カウントで正確。
+// 残りが「>0 → 0」に変化したら「全部読んだ」演出を発火。
+function updateCounters() {
+  if (!remainingBadge) return;
+  const overlayOpen = overlay && overlay.style.display !== 'none';
+
+  // bookmarkの絶対位置（未読カウント用）
+  let bmAbsTop = null;
+  if (settings.showUnreadCount && bookmarkElement && document.body.contains(bookmarkElement)) {
+    bmAbsTop = window.scrollY + bookmarkElement.getBoundingClientRect().top;
+  }
+
+  let remaining = 0;
+  let unread = 0;
+  for (const el of document.querySelectorAll('[data-cell-id]')) {
+    const id = el.getAttribute('data-cell-id');
+    if (!id || !/-post-\d+-/.test(id)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.bottom < 0) remaining++;
+    if (bmAbsTop !== null && (window.scrollY + r.top) < bmAbsTop) unread++;
+  }
+
+  // 「全部読んだ」演出: remaining が >0 を経てから 0 になった時だけ
+  if (settings.showRemainingCount && !overlayOpen) {
+    if (remaining > 0) caughtUpArmed = true;
+    else if (caughtUpArmed) {
+      caughtUpArmed = false;
+      if (settings.celebrateCaughtUp) showCelebration();
+    }
+  }
+
+  if (overlayOpen) {
+    remainingBadge.style.display = 'none';
+    return;
+  }
+
+  const segments = [];
+  if (settings.showRemainingCount && remaining > 0) {
+    segments.push(`↑ ${remaining} to top`);
+  }
+  if (settings.showUnreadCount && bmAbsTop !== null && unread > 0) {
+    segments.push(`${unread} new`);
+  }
+
+  if (segments.length === 0) {
+    remainingBadge.style.display = 'none';
+    return;
+  }
+  remainingBadge.textContent = segments.join(' · ');
+  remainingBadge.style.display = 'block';
+}
+
+function showCelebration() {
+  if (!celebrationToast) return;
+  celebrationToast.textContent = '🎉 You\'re all caught up!';
+  celebrationToast.style.display = 'block';
+  celebrationToast.style.animation = 'caughtUpPop 0.4s ease';
+  clearTimeout(celebrationTimer);
+  celebrationTimer = setTimeout(() => {
+    celebrationToast.style.display = 'none';
+    celebrationToast.style.animation = '';
+  }, 2600);
+}
+
+function handleShortcut(e) {
+  if (!settings.keyboardShortcuts) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  const tag = t && t.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+
+  switch (e.key) {
+    case 'b':
+    case 'B':
+      e.preventDefault();
+      searchForBookmark();
+      break;
+    case 't':
+    case 'T':
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      break;
+    case 'p':
+    case 'P':
+      e.preventDefault();
+      if (bookmarkHistory[1]) searchForPostId(bookmarkHistory[1].postId, historyLabel(1));
+      break;
+  }
+}
+
 function scheduleUpdate() {
   if (updateScheduled) return;
   updateScheduled = true;
   requestAnimationFrame(() => {
     updateScheduled = false;
     updateMarker();
+    updateCounters();
   });
 }
 
@@ -595,10 +770,14 @@ function init() {
     ensureUI();
 
     // 初回表示のために少し遅延
-    setTimeout(updateMarker, 500);
+    setTimeout(() => {
+      updateMarker();
+      updateCounters();
+    }, 500);
   });
 
   window.addEventListener('scroll', scheduleUpdate);
+  document.addEventListener('keydown', handleShortcut);
 
   // DOM変更を監視して bookmarkElement が追加されたら更新
   const observer = new MutationObserver(() => {
@@ -609,7 +788,7 @@ function init() {
   // 設定変更をリアルタイムで反映
   browser.storage.onChanged.addListener((changes) => {
     const updated = {};
-    for (const key of ['markerColor', 'markerText', 'maxScan', 'showFindButton', 'historyEnabled', 'maxHistory']) {
+    for (const key of ['markerColor', 'markerText', 'maxScan', 'showFindButton', 'historyEnabled', 'maxHistory', 'showRemainingCount', 'showUnreadCount', 'celebrateCaughtUp', 'keyboardShortcuts']) {
       if (changes[key]) updated[key] = changes[key].newValue;
     }
     if (Object.keys(updated).length > 0) applySettings(updated);

@@ -5,6 +5,10 @@ const DEFAULTS = {
   showFindButton: true,
   historyEnabled: true,
   maxHistory: 3,
+  showRemainingCount: true,
+  showUnreadCount: true,
+  celebrateCaughtUp: true,
+  keyboardShortcuts: true,
 };
 
 function getLuminance(hex) {
@@ -48,6 +52,14 @@ const historyEnabledInput = document.getElementById('history-enabled');
 const historyLabel = document.getElementById('history-label');
 const maxHistoryInput = document.getElementById('max-history');
 const maxHistoryValue = document.getElementById('max-history-value');
+const showRemainingCountInput = document.getElementById('show-remaining-count');
+const remainingLabel = document.getElementById('remaining-label');
+const showUnreadCountInput = document.getElementById('show-unread-count');
+const unreadLabel = document.getElementById('unread-label');
+const celebrateCaughtUpInput = document.getElementById('celebrate-caught-up');
+const celebrateLabel = document.getElementById('celebrate-label');
+const keyboardShortcutsInput = document.getElementById('keyboard-shortcuts');
+const shortcutsLabel = document.getElementById('shortcuts-label');
 const saveBtn = document.getElementById('save-btn');
 const resetBtn = document.getElementById('reset-btn');
 const status = document.getElementById('status');
@@ -65,6 +77,14 @@ browser.storage.local.get(DEFAULTS).then(result => {
   historyLabel.textContent = result.historyEnabled ? 'Enabled' : 'Disabled';
   maxHistoryInput.value = result.maxHistory;
   maxHistoryValue.textContent = result.maxHistory;
+  showRemainingCountInput.checked = result.showRemainingCount;
+  remainingLabel.textContent = result.showRemainingCount ? 'Enabled' : 'Disabled';
+  showUnreadCountInput.checked = result.showUnreadCount;
+  unreadLabel.textContent = result.showUnreadCount ? 'Enabled' : 'Disabled';
+  celebrateCaughtUpInput.checked = result.celebrateCaughtUp;
+  celebrateLabel.textContent = result.celebrateCaughtUp ? 'Enabled' : 'Disabled';
+  keyboardShortcutsInput.checked = result.keyboardShortcuts;
+  shortcutsLabel.textContent = result.keyboardShortcuts ? 'Enabled' : 'Disabled';
   applyPreview(result.markerColor, result.markerText);
 });
 
@@ -99,6 +119,26 @@ maxHistoryInput.addEventListener('input', () => {
   maxHistoryValue.textContent = maxHistoryInput.value;
 });
 
+// 残りポスト数カウンター トグル
+showRemainingCountInput.addEventListener('change', () => {
+  remainingLabel.textContent = showRemainingCountInput.checked ? 'Enabled' : 'Disabled';
+});
+
+// 未読カウンター トグル
+showUnreadCountInput.addEventListener('change', () => {
+  unreadLabel.textContent = showUnreadCountInput.checked ? 'Enabled' : 'Disabled';
+});
+
+// 「全部読んだ」演出 トグル
+celebrateCaughtUpInput.addEventListener('change', () => {
+  celebrateLabel.textContent = celebrateCaughtUpInput.checked ? 'Enabled' : 'Disabled';
+});
+
+// キーボードショートカット トグル
+keyboardShortcutsInput.addEventListener('change', () => {
+  shortcutsLabel.textContent = keyboardShortcutsInput.checked ? 'Enabled' : 'Disabled';
+});
+
 // 保存
 saveBtn.addEventListener('click', () => {
   browser.storage.local.set({
@@ -108,6 +148,10 @@ saveBtn.addEventListener('click', () => {
     showFindButton: showFindButtonInput.checked,
     historyEnabled: historyEnabledInput.checked,
     maxHistory: parseInt(maxHistoryInput.value, 10),
+    showRemainingCount: showRemainingCountInput.checked,
+    showUnreadCount: showUnreadCountInput.checked,
+    celebrateCaughtUp: celebrateCaughtUpInput.checked,
+    keyboardShortcuts: keyboardShortcutsInput.checked,
   }).then(() => {
     status.textContent = 'Saved!';
     setTimeout(() => { status.textContent = ''; }, 2000);
@@ -127,6 +171,14 @@ resetBtn.addEventListener('click', () => {
   historyLabel.textContent = 'Enabled';
   maxHistoryInput.value = DEFAULTS.maxHistory;
   maxHistoryValue.textContent = DEFAULTS.maxHistory;
+  showRemainingCountInput.checked = DEFAULTS.showRemainingCount;
+  remainingLabel.textContent = 'Enabled';
+  showUnreadCountInput.checked = DEFAULTS.showUnreadCount;
+  unreadLabel.textContent = 'Enabled';
+  celebrateCaughtUpInput.checked = DEFAULTS.celebrateCaughtUp;
+  celebrateLabel.textContent = 'Enabled';
+  keyboardShortcutsInput.checked = DEFAULTS.keyboardShortcuts;
+  shortcutsLabel.textContent = 'Enabled';
   applyPreview(DEFAULTS.markerColor, DEFAULTS.markerText);
 
   browser.storage.local.set(DEFAULTS).then(() => {
